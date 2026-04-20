@@ -1,21 +1,23 @@
 #!/usr/bin/env node
 
 /**
- * generate-pdf.mjs — HTML → PDF via agent-browser
+ * generate-pdf.mjs — HTML CV → PDF via agent-browser-stealth (abs)
  *
  * Usage:
- *   node generate-pdf.mjs <input.html> <output.pdf> [--format=letter|a4]
- *
- * Requires: agent-browser installed + Chrome downloaded.
+ *   node generate-pdf.mjs <input.html> <output.pdf>
+ *   BROWSER_CLI=agent-browser node generate-pdf.mjs ...   # use agent-browser instead
  */
 
 import { spawn } from 'child_process';
 import { resolve } from 'path';
-import { readFile } from 'fs/promises';
+import { readFile, writeFile, unlink } from 'fs/promises';
+import { existsSync, statSync } from 'fs';
+
+const BROWSER_CLI = process.env.BROWSER_CLI || 'agent-browser-stealth';
 
 function ab(args, timeout = 60000) {
   return new Promise((resolve, reject) => {
-    const proc = spawn('agent-browser', args, { timeout, stdio: ['ignore', 'pipe', 'pipe'] });
+    const proc = spawn(BROWSER_CLI, args, { timeout, stdio: ['ignore', 'pipe', 'pipe'] });
     let stdout = '', stderr = '';
     proc.stdout.on('data', d => stdout += d);
     proc.stderr.on('data', d => stderr += d);
@@ -24,7 +26,7 @@ function ab(args, timeout = 60000) {
         try { resolve(JSON.parse(stdout)); }
         catch { resolve({ success: true }); }
       } else {
-        reject(new Error(stderr || `agent-browser exited ${code}`));
+        reject(new Error(stderr || `${BROWSER_CLI} exited ${code}`));
       }
     });
     proc.on('error', reject);
@@ -34,13 +36,11 @@ function ab(args, timeout = 60000) {
 function normalizeTextForATS(html) {
   const replacements = {};
   const bump = (key, n) => { replacements[key] = (replacements[key] || 0) + n; };
-
   const masks = [];
   const masked = html.replace(/<(style|script)\b[^>]*>[\s\S]*?<\/\1>/gi, (m) => {
     masks.push(m);
     return `\u0000MASK${masks.length - 1}\u0000`;
   });
-
   let out = '';
   for (let i = 0; i < masked.length; ) {
     const lt = masked.indexOf('<', i);
@@ -51,8 +51,10 @@ function normalizeTextForATS(html) {
     out += masked.slice(lt, gt + 1);
     i = gt + 1;
   }
-
-  return { html: out.replace(/\u0000MASK(\d+)\u0000/g, (_, n) => masks[n]), replacements };
+  return {
+    html: out.replace(/\u0000MASK(\d+)\u0000/g, (_, n) => masks[n]),
+    replacements
+  };
 
   function sanitize(text) {
     if (!text) return text;
@@ -69,34 +71,25 @@ function normalizeTextForATS(html) {
 
 async function generatePDF() {
   const args = process.argv.slice(2);
-
-  let inputPath, outputPath, format = 'a4';
+  let inputPath, outputPath;
   for (const arg of args) {
-    if (arg.startsWith('--format=')) format = arg.split('=')[1].toLowerCase();
-    else if (!inputPath) inputPath = arg;
+    if (!inputPath) inputPath = arg;
     else outputPath = arg;
   }
 
   if (!inputPath || !outputPath) {
-    console.error('Usage: node generate-pdf.mjs <input.html> <output.pdf> [--format=letter|a4]');
+    console.error('Usage: node generate-pdf.mjs <input.html> <output.pdf>');
     process.exit(1);
   }
 
   inputPath = resolve(inputPath);
   outputPath = resolve(outputPath);
 
-  const validFormats = ['a4', 'letter'];
-  if (!validFormats.includes(format)) {
-    console.error(`Invalid format "${format}". Use: ${validFormats.join(', ')}`);
-    process.exit(1);
-  }
-
   console.log(`📄 Input:  ${inputPath}`);
   console.log(`📁 Output: ${outputPath}`);
-  console.log(`📏 Format: ${format.toUpperCase()}`);
+  console.log(`🌐 Browser: ${BROWSER_CLI}`);
 
   let html = await readFile(inputPath, 'utf-8');
-
   const { html: normalized, replacements } = normalizeTextForATS(html);
   html = normalized;
   const total = Object.values(replacements).reduce((a, b) => a + b, 0);
@@ -105,29 +98,29 @@ async function generatePDF() {
     console.log(`🧹 ATS normalization: ${total} replacements (${breakdown})`);
   }
 
-  // Write normalized HTML to temp file and open it
-  const { writeFile, unlink } = await import('fs/promises');
+  // Write normalized HTML to temp file
   const tmpPath = outputPath + '.tmp.html';
   await writeFile(tmpPath, html, 'utf-8');
 
   try {
-    await ab(['open', `file://${tmpPath}`, '--json']);
-    await ab(['wait', '--load', 'networkidle', '--timeout', '10000', '--json']);
-    await ab(['eval', 'document.fonts.ready', '--json']);
-    await ab(['pdf', outputPath, '--json']);
+    await ab(['--launch', 'open', `file://${tmpPath}`]);
+    await ab(['wait', '--load', 'networkidle', '--timeout', '10000']);
+    await ab(['eval', 'document.fonts.ready']);
+    await ab(['pdf', outputPath]);
   } finally {
-    try { await unlink(tmpPath); } catch { /* ignore */ }
-    await ab(['close', '--json']);
+    await unlink(tmpPath).catch(() => {});
+    try { await ab(['close']); } catch { /* ignore */ }
   }
 
-  const { statSync } = await import('fs');
+  if (!existsSync(outputPath)) {
+    throw new Error(`${BROWSER_CLI} failed to produce PDF`);
+  }
+
   const size = statSync(outputPath).size;
   const pdfString = await readFile(outputPath, 'latin1');
   const pageCount = (pdfString.match(/\/Type\s*\/Page[^s]/g) || []).length;
-
   console.log(`✅ PDF generated: ${outputPath}`);
-  console.log(`📊 Pages: ${pageCount}`);
-  console.log(`📦 Size: ${(size / 1024).toFixed(1)} KB`);
+  console.log(`📊 Pages: ${pageCount} | 📦 ${(size / 1024).toFixed(1)} KB`);
 }
 
 generatePDF().catch(err => { console.error('❌ PDF generation failed:', err.message); process.exit(1); });

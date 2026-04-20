@@ -29,79 +29,81 @@ Interactive mode for when the candidate fills a job application form. Reads the 
 - Or paste form questions as text
 - Or name company + role so we can search
 
-## Paso 2 — Identificar y buscar contexto
+## Step 2 — Identify and lookup context
 
-1. Extraer nombre de empresa y título del rol de la página
-2. Buscar en `reports/` por nombre de empresa (Grep case-insensitive)
-3. Si hay match → cargar el report completo
-4. Si hay Section G → cargar los draft answers previos como base
-5. Si NO hay match → avisar y ofrecer ejecutar auto-pipeline rápido
+1. Extract company name and role title from the page
+2. Search `reports/` for company name (case-insensitive grep)
+3. If match → load full report
+4. If Section G exists → load previous draft answers as base
+5. If NO match → warn and offer to run auto-pipeline
 
-## Paso 3 — Detectar cambios en el rol
+## Step 3 — Detect role changes
 
-Si el rol en pantalla difiere del evaluado:
-- **Avisar al candidato**: "El rol ha cambiado de [X] a [Y]. ¿Quieres que re-evalúe o adapto las respuestas al nuevo título?"
-- **Si adaptar**: Ajustar las respuestas al nuevo rol sin re-evaluar
-- **Si re-evaluar**: Ejecutar evaluación A-F completa, actualizar report, regenerar Section G
-- **Actualizar tracker**: Cambiar título del rol en applications.md si procede
+If the on-screen role differs from the evaluated role:
+- **Warn the candidate**: "Role changed from [X] to [Y]. Re-evaluate or adapt answers?"
+- **If adapting**: Adjust answers to new role without re-evaluating
+- **If re-evaluating**: Run full A-F evaluation, update report, regenerate Section G
+- **Update tracker**: Change role title in applications.md if needed
 
-## Paso 4 — Analizar preguntas del formulario
+## Step 4 — Analyze form questions
 
-Identificar TODAS las preguntas visibles:
-- Campos de texto libre (cover letter, why this role, etc.)
+Identify ALL visible questions:
+- Free-text fields (cover letter, why this role, etc.)
 - Dropdowns (how did you hear, work authorization, etc.)
 - Yes/No (relocation, visa, etc.)
-- Campos de salario (range, expectation)
+- Salary fields (range, expectation)
 - Upload fields (resume, cover letter PDF)
 
-Clasificar cada pregunta:
-- **Ya respondida en Section G** → adaptar la respuesta existente
-- **Nueva pregunta** → generar respuesta desde el report + cv.md
+Classify each question:
+- **Already answered in Section G** → adapt existing answer
+- **New question** → generate from report + cv.md
 
-## Paso 5 — Generar respuestas
+## Step 5 — Generate answers
 
-Para cada pregunta, generar la respuesta siguiendo:
+For each question, generate the answer following:
 
-1. **Contexto del report**: Usar proof points del bloque B, historias STAR del bloque F
-2. **Section G previa**: Si existe una respuesta draft, usarla como base y refinar
-3. **Tono "I'm choosing you"**: Mismo framework del auto-pipeline
-4. **Especificidad**: Referenciar algo concreto del JD visible en pantalla
-5. **career-ops proof point**: Incluir en "Additional info" si hay campo para ello
+1. **Report context**: Use proof points from Block B, STAR stories from Block F
+2. **Prior Section G**: If draft answer exists, use as base and refine
+3. **"I'm choosing you" tone**: Same framework as auto-pipeline
+4. **Specificity**: Reference something concrete from the on-screen JD
+5. **career-ops proof point**: Include in "Additional info" if field available
 
-**Formato de output:**
+**Output format:**
 
 ```
-## Respuestas para [Empresa] — [Rol]
+## Answers for [Company] — [Role]
 
-Basado en: Report #NNN | Score: X.X/5 | Arquetipo: [tipo]
+Based on: Report #NNN | Score: X.X/5 | Archetype: [type]
 
 ---
 
-### 1. [Pregunta exacta del formulario]
-> [Respuesta lista para copy-paste]
+### 1. [Exact form question]
+> [Copy-paste ready answer]
 
-### 2. [Siguiente pregunta]
-> [Respuesta]
+### 2. [Next question]
+> [Answer]
 
 ...
 
 ---
 
-Notas:
-- [Cualquier observación sobre el rol, cambios, etc.]
-- [Sugerencias de personalización que el candidato debería revisar]
+Notes:
+- [Any observations about the role, changes, etc.]
+- [Personalization suggestions the candidate should review]
 ```
 
-## Paso 6 — Post-apply (opcional)
+**After generating any temporary resume/HTML files for this application:** Delete them immediately after the candidate has uploaded the file to the form. Also clean up any XeLaTeX build artifacts (`.aux`, `.log`, `.fls`, `.fdb_latexmk`, `.out`) in the same directory. Temp files live in `output/` — clean up anything with `tmp`, `temp`, or a dated pattern that was created just for this application.
 
-Si el candidato confirma que envió la aplicación:
-1. Actualizar estado en `applications.md` de "Evaluada" a "Aplicado"
-2. Actualizar Section G del report con las respuestas finales
-3. Sugerir siguiente paso: `/career-ops contacto` para LinkedIn outreach
+## Step 6 — Post-apply (optional)
+
+If the candidate confirms application submitted:
+1. Update status in `applications.md` from "Evaluated" to "Applied"
+2. Update Section G of report with final answers
+3. Suggest next step: `/career-ops contacto` for LinkedIn outreach
 
 ## Scroll handling
 
-Si el formulario tiene más preguntas que las visibles:
-- Pedir al candidato que haga scroll y comparta otro screenshot
-- O que pegue las preguntas restantes
-- Procesar en iteraciones hasta cubrir todo el formulario
+If the form has more questions than visible:
+- Ask candidate to scroll and share another screenshot
+- Or paste remaining questions
+- Process in iterations until all questions covered

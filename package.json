@@ -31,6 +31,7 @@
   },
   "license": "MIT",
   "dependencies": {
+    "agent-browser-stealth": "^0.24.0-fork.2",
     "js-yaml": "^4.1.1",
     "patchright": "^1.59.4"
   }
